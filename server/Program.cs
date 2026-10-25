@@ -1,3 +1,5 @@
+using Scalar.AspNetCore;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -11,6 +13,10 @@ if (app.Environment.IsDevelopment())
 {
     // OpenAPI document at /openapi/v1.json
     app.MapOpenApi();
+
+    // API docs, both built from the OpenAPI document: /swagger and /scalar
+    app.UseSwaggerUI(options => options.SwaggerEndpoint("/openapi/v1.json", "v1"));
+    app.MapScalarApiReference();
 }
 else
 {
@@ -21,26 +27,9 @@ else
 }
 
 // All API endpoints live under /api so they never clash with React routes.
+// MapApiRoutes() is generated from the files in api/: api/users/[id].get.cs → GET /api/users/{id}
 var api = app.MapGroup("/api");
-
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
-
-api.MapGet("/weatherforecast", () =>
-{
-    var forecast = Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast");
+api.MapApiRoutes();
 
 // Unknown /api routes should 404, not return index.html.
 api.MapFallback(() => Results.NotFound());
@@ -53,8 +42,3 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}

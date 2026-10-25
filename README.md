@@ -4,7 +4,8 @@ A starter template for building a web app with an **ASP.NET Core** backend (C#) 
 
 | Part     | What it uses                                                                 |
 | -------- | ---------------------------------------------------------------------------- |
-| Backend  | [.NET 10](https://dotnet.microsoft.com/) Minimal API                          |
+| Backend  | [.NET 10](https://dotnet.microsoft.com/) Minimal API, file-based routes (like [Nitro](https://nitro.build/guide/routing)) |
+| API docs | OpenAPI + [Swagger UI](https://swagger.io/tools/swagger-ui/) + [Scalar](https://scalar.com/) |
 | Frontend | [React 19](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/) + [Vite](https://vite.dev/) |
 | Routing  | [TanStack Router](https://tanstack.com/router) (file-based, type-safe)       |
 | Styling  | [Tailwind CSS v4](https://tailwindcss.com/)                          |
@@ -68,9 +69,17 @@ This starts **two** programs at once:
 | `web` | <http://localhost:5173>    | The React app. **Open this one.** |
 | `api` | <http://localhost:5171>    | The .NET API                     |
 
+API docs (development only):
+
+| URL                                    | What it is                      |
+| -------------------------------------- | ------------------------------- |
+| <http://localhost:5171/scalar>         | Scalar API reference            |
+| <http://localhost:5171/swagger>        | Swagger UI                      |
+| <http://localhost:5171/openapi/v1.json>| The raw OpenAPI document both use |
+
 Open <http://localhost:5173> in your browser. Click **Weather**: that page loads its data from the .NET API.
 
-Both sides reload automatically when you save a file. Press `Ctrl + C` in the terminal to stop.
+Both sides reload automatically when you save a file: React updates in place, and the API rebuilds and restarts in about a second (so new, renamed and deleted endpoint files take effect right away). Press `Ctrl + C` in the terminal to stop.
 
 > Prefer two terminals? Run `bun run dev:api` in one and `bun run dev:web` in the other.
 
@@ -93,13 +102,20 @@ The React code always calls URLs like `/api/weatherforecast`. In development, Vi
 ```
 .
 ├── package.json            ← root scripts (dev, build, start, setup)
-├── DotNetReact.slnx        ← .NET solution file (open it in Visual Studio / Rider)
+├── dot-react.slnx          ← .NET solution file (open it in Visual Studio / Rider)
 │
 ├── server/                 ← the .NET backend
-│   ├── Program.cs          ← API endpoints are defined here
+│   ├── Program.cs          ← app setup: OpenAPI, Swagger/Scalar, the /api group
+│   ├── api/                ← one file per endpoint; the file name is the route
+│   │   └── weatherforecast.get.cs   ← GET /api/weatherforecast
 │   ├── Server.csproj       ← .NET project file (NuGet packages go here)
 │   ├── appsettings.json    ← configuration
 │   └── Properties/launchSettings.json  ← dev port (5171)
+│
+├── generators/             ← source generator that turns server/api/ files into routes
+├── scripts/
+│   ├── api.ts              ← scaffolds new endpoint files (`bun run api:new`)
+│   └── dev-api.ts          ← runs the API in development, restarting it on every change
 │
 └── client/                 ← the React frontend
     ├── index.html
@@ -164,29 +180,71 @@ See the [TanStack Router file-based routing guide](https://tanstack.com/router/l
 
 ### Add a new API endpoint
 
-Open [server/Program.cs](server/Program.cs) and add an endpoint to the `api` group. Everything in that group automatically starts with `/api`.
+Endpoints use **file-based routing**, like [Nitro](https://nitro.build/guide/routing): each file in `server/api/` is one endpoint, and **its path and name decide the URL and HTTP method**. A source generator reads the file names when the project compiles and writes the `MapGet`/`MapPost`/... calls for you, so you never register routes by hand.
 
-```csharp
-api.MapGet("/hello/{name}", (string name) => new { message = $"Hello, {name}!" });
+| File in `server/api/`         | Route                       |
+| ----------------------------- | --------------------------- |
+| `hello.get.cs`                | `GET /api/hello`            |
+| `hello.cs` (no method)        | `GET /api/hello`            |
+| `users/index.get.cs`          | `GET /api/users`            |
+| `users/index.post.cs`         | `POST /api/users`           |
+| `users/[id].get.cs`           | `GET /api/users/{id}`       |
+| `users/[id].delete.cs`        | `DELETE /api/users/{id}`    |
+| `users/[id]/posts.get.cs`     | `GET /api/users/{id}/posts` |
+| `files/[...path].get.cs`      | `GET /api/files/{*path}` (catch-all) |
+
+Methods: `.get`, `.post`, `.put`, `.patch`, `.delete`, `.head`, `.options`.
+
+**Create one** by running:
+
+```bash
+bun run api:new "users/[id].get"
 ```
 
-Now <http://localhost:5171/api/hello/sam> returns `{"message":"Hello, sam!"}`.
-
-Example of a `POST` that receives JSON:
+Or, while `bun run dev` is running, create an **empty** file such as `server/api/users/[id].get.cs` and it gets filled in for you:
 
 ```csharp
-api.MapPost("/todos", (Todo todo) => Results.Created($"/api/todos/{todo.Id}", todo));
+namespace Server.Api;
 
-record Todo(int Id, string Title, bool Done);
+// GET /api/users/{id}
+public static class GetUsersById
+{
+    public static IResult Handle(string id) =>
+        TypedResults.Ok(new { id });
+
+    // Optional: extra endpoint setup (summary, auth, caching, ...)
+    public static void Configure(RouteHandlerBuilder endpoint) =>
+        endpoint.WithSummary("GET /api/users/{id}");
+}
 ```
 
-> Records like `Todo` must go at the **bottom** of `Program.cs`, after `app.Run();`, or in their own `.cs` file.
+The rules for a file:
 
-When `Program.cs` gets big, move endpoints into separate files. See [Minimal APIs](https://learn.microsoft.com/aspnet/core/fundamentals/minimal-apis).
+- It needs **one class** with a `public static` method named **`Handle`**. That method is the endpoint handler and works like any Minimal API handler: `[id]` in the file name becomes the `id` parameter (`int id` makes ASP.NET check that it's a number), a record parameter on a `POST`/`PUT` is read from the JSON body, and services are injected by type.
+- The class name can be anything. The scaffold names it after the route (`GetUsersById`) so names don't collide.
+- `Configure(RouteHandlerBuilder endpoint)` is optional. Use it for anything you would chain onto `MapGet(...)`: `.WithSummary(...)`, `.RequireAuthorization()`, `.Produces<T>(404)`, and so on.
+
+Every route also gets an OpenAPI operation id (`GetUsersById`) and is grouped in the docs by its first URL segment (`users`), so it appears in Scalar and Swagger right away.
+
+The build tells you when something is wrong:
+
+| Code     | Meaning                                                        |
+| -------- | -------------------------------------------------------------- |
+| `API001` | Two files map to the same method and route (error)             |
+| `API002` | A file in `server/api/` has no `Handle` method, so no route (warning) |
+| `API003` | A file has more than one `Handle` method (error)               |
+| `API004` | The handler class is `private`, `file` or nested (error)       |
+
+To see exactly what was generated, open `server/obj/Debug/net10.0/generated/Server.Generators/Server.Generators.ApiRouteGenerator/ApiRoutes.g.cs`.
 
 ### Call the API from React
 
-It takes three steps. Using the `/hello` endpoint above as the example:
+It takes three steps. As an example, say you created `server/api/hello/[name].get.cs` (`GET /api/hello/{name}`) with this handler:
+
+```csharp
+public static IResult Handle(string name) =>
+    TypedResults.Ok(new { message = $"Hello, {name}!" });
+```
 
 **1. Write a fetch function and a query** in `client/src/api/hello.ts`:
 
@@ -287,7 +345,7 @@ In development, two small floating buttons show up in the bottom corners of the 
 - **TanStack Router Devtools**: the current route, params and loader data
 - **React Query Devtools**: every cached query and its status
 
-The API's OpenAPI description is at <http://localhost:5171/openapi/v1.json>.
+The API docs are at <http://localhost:5171/scalar> (Scalar) and <http://localhost:5171/swagger> (Swagger UI). Both read the OpenAPI document at <http://localhost:5171/openapi/v1.json> and let you send test requests.
 
 ### Lint the frontend
 
@@ -327,8 +385,9 @@ Run these from the **root** folder:
 | ----------------- | ----------------------------------------------------- |
 | `bun run setup`   | Install frontend and backend dependencies             |
 | `bun run dev`     | Start the API and the React app together              |
-| `bun run dev:api` | Start only the .NET API (with auto-reload)            |
+| `bun run dev:api` | Start only the .NET API (restarts on every change)    |
 | `bun run dev:web` | Start only the React app                              |
+| `bun run api:new <path>` | Create an endpoint file, e.g. `bun run api:new "users/[id].get"` |
 | `bun run build`   | Build everything into `publish/`                      |
 | `bun run start`   | Run the production build from `publish/`              |
 
@@ -356,7 +415,10 @@ Use `:5173` for the React app instead. You can also change the port in `server/P
 Install the tool (step 1), then **close and reopen your terminal**.
 
 **I changed a C# file and nothing happened**
-`dotnet watch` restarts the API when you save. Check the `api` lines in the terminal for build errors.
+The API rebuilds and restarts when you save (see [scripts/dev-api.ts](scripts/dev-api.ts)). If the build fails, the errors appear in the `api` lines in the terminal and the API stays stopped until you save a fix.
+
+**My new endpoint returns 404**
+Check that the file is inside `server/api/`, that its name gives the route you expect (see [Add a new API endpoint](#add-a-new-api-endpoint)), and that it has a `public static Handle` method. The build prints warning `API002` for a file without one. Open <http://localhost:5171/scalar> to see every route that was generated.
 
 ---
 

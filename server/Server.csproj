@@ -4,12 +4,23 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Writes generated code (e.g. ApiRoutes.g.cs) to obj/generated so you can read it. -->
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.7" />
     <!-- Pinned above the 2.0.0 version pulled in by Microsoft.AspNetCore.OpenApi, which has a known vulnerability (GHSA-v5pm-xwqc-g5wc). -->
     <PackageReference Include="Microsoft.OpenApi" Version="2.13.0" />
+    <!-- API docs UIs, both reading the OpenAPI document above: /swagger and /scalar -->
+    <PackageReference Include="Scalar.AspNetCore" Version="2.18.3" />
+    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="10.3.1" />
+  </ItemGroup>
+
+  <!-- Turns the files in api/ into routes at compile time (see generators/ApiRouteGenerator.cs). -->
+  <ItemGroup>
+    <ProjectReference Include="..\generators\Server.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <CompilerVisibleProperty Include="ProjectDir" />
   </ItemGroup>
 
 </Project>

@@ -1,7 +1,7 @@
 import { queryOptions } from '@tanstack/react-query'
 import { http } from '../lib/http'
 
-// Matches the WeatherForecast record in server/Program.cs
+// Matches the WeatherForecast record in server/api/weatherforecast.get.cs
 export type WeatherForecast = {
   date: string
   temperatureC: number

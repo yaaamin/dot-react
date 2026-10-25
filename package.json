@@ -1,11 +1,12 @@
 {
-  "name": "dot-net-react",
+  "name": "dot-react",
   "private": true,
   "scripts": {
     "setup": "cd client && bun install && cd ../server && dotnet restore",
-    "dev": "bunx concurrently -k -n api,web -c blue,magenta \"dotnet watch --project server --no-hot-reload\" \"cd client && bun run dev\"",
-    "dev:api": "dotnet watch --project server",
+    "dev": "bunx concurrently -k -n api,web -c blue,magenta \"bun scripts/dev-api.ts\" \"cd client && bun run dev\"",
+    "dev:api": "bun scripts/dev-api.ts",
     "dev:web": "cd client && bun run dev",
+    "api:new": "bun scripts/api.ts new",
     "build": "cd client && bun run build && cd .. && dotnet publish server -c Release -o publish",
     "start": "cd publish && dotnet Server.dll"
   }

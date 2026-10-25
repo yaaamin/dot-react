@@ -22,7 +22,7 @@ function WeatherPage() {
       <h1 className="text-3xl font-bold">Weather forecast</h1>
       <p>
         Served by <code className="rounded bg-gray-100 px-1 dark:bg-gray-800">GET /api/weatherforecast</code> in{' '}
-        <code className="rounded bg-gray-100 px-1 dark:bg-gray-800">server/Program.cs</code>.
+        <code className="rounded bg-gray-100 px-1 dark:bg-gray-800">server/api/weatherforecast.get.cs</code>.
       </p>
       <table className="w-full text-left">
         <thead>
