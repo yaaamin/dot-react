@@ -1,10 +1,36 @@
+using Microsoft.OpenApi;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options =>
+{
+    // .NET 10 describes numeric route/query parameters as `type: ["integer", "string"]` with a pattern,
+    // because route values arrive as text. Swagger UI can't render that union, so it reports
+    // "Required field is not provided" even when a value is typed in. Describe them as plain numbers.
+    options.AddOperationTransformer((operation, _, _) =>
+    {
+        foreach (var parameter in operation.Parameters ?? [])
+        {
+            if (parameter.Schema is OpenApiSchema schema && schema.Type is { } type)
+            {
+                if (type.HasFlag(JsonSchemaType.Integer) && type.HasFlag(JsonSchemaType.String))
+                {
+                    schema.Type = JsonSchemaType.Integer;
+                    schema.Pattern = null;
+                }
+                else if (type.HasFlag(JsonSchemaType.Number) && type.HasFlag(JsonSchemaType.String))
+                {
+                    schema.Type = JsonSchemaType.Number;
+                    schema.Pattern = null;
+                }
+            }
+        }
+        return Task.CompletedTask;
+    });
+});
 
 var app = builder.Build();
 
