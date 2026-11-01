@@ -9,6 +9,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Database access: Dapper runs the stored procedures, MySqlConnector talks to MySQL. -->
+    <PackageReference Include="Dapper" Version="2.1.66" />
+    <PackageReference Include="MySqlConnector" Version="2.4.0" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.7" />
     <!-- Pinned above the 2.0.0 version pulled in by Microsoft.AspNetCore.OpenApi, which has a known vulnerability (GHSA-v5pm-xwqc-g5wc). -->
     <PackageReference Include="Microsoft.OpenApi" Version="2.13.0" />

@@ -1,7 +1,11 @@
 using Microsoft.OpenApi;
 using Scalar.AspNetCore;
+using Server.Services.AuditLogs;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Audit logging: makes IAuditLogger available to any endpoint (see Services/AuditLogs).
+builder.Services.AddAuditLogging(builder.Configuration);
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
